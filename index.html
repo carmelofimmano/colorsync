@@ -127,7 +127,9 @@
 
     .grid-wrap { flex:1; display:flex; flex-direction:column; min-height:0; }
     .grid-hint { text-align:center; color:var(--muted); font-size:.88rem; margin-bottom:10px; }
-    .color-grid { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(3,1fr); gap:12px; min-height:0; }
+    .color-grid { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(4,1fr); gap:12px; min-height:0; }
+    .cbtn.blink .ci { animation:blink 1s infinite; }
+    .cbtn small { display:block; font-size:.8rem; font-weight:700; opacity:.85; margin-top:2px; }
     .color-grid.dim { opacity:.6; filter:saturate(.5); }
 
     .cbtn {
@@ -160,7 +162,7 @@
       transition:opacity .35s;
     }
     .recv-center.fade { opacity:0; pointer-events:none; }
-    #recv-name { font-size:3.2rem; font-weight:900; text-shadow:0 4px 16px rgba(0,0,0,.6); }
+    #recv-name { text-align:center; padding:0 16px; font-size:3.2rem; font-weight:900; text-shadow:0 4px 16px rgba(0,0,0,.6); }
     .recv-hint { font-size:.85rem; color:rgba(255,255,255,.65); }
 
     .circle-btn {
@@ -257,6 +259,12 @@
         <button class="cbtn neutral" style="background:#0F172A;color:#94a3b8" data-hex="#0F172A" data-name="Neutro" data-tc="#94a3b8">
           <span class="cn">Neutro</span><span class="ci">⚪</span>
         </button>
+        <button class="cbtn blink" style="background:#EF4444;color:#fff" data-hex="#EF4444" data-name="Rosso lampeggiante" data-tc="#fff" data-blink="1">
+          <span class="cn">Rosso<small>lampeggiante</small></span><span class="ci">⚡</span>
+        </button>
+        <button class="cbtn blink" style="background:#12D414;color:#052e16" data-hex="#12D414" data-name="Verde lampeggiante" data-tc="#052e16" data-blink="1">
+          <span class="cn">Verde<small>lampeggiante</small></span><span class="ci">⚡</span>
+        </button>
       </div>
     </div>
 
@@ -326,6 +334,9 @@
   var wakeLock     = null;
   var fadeTimer    = null;
   var ctrlsVisible = true;
+  var blinkTimer   = null;
+  var BLINK_MS     = 500;       // lampeggio: mezzo secondo acceso, mezzo spento
+  var BLINK_OFF    = '#000000';
 
   // ── DOM ────────────────────────────────────────────────
   function $(id) { return document.getElementById(id); }
@@ -366,6 +377,7 @@
     if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
     destroyPeer();
     releaseWakeLock();
+    stopBlink();
     $('screen-recv').style.backgroundColor = '';
     $('recv-name').textContent = 'Neutro';
     $('recv-name').style.color = '';
@@ -610,10 +622,10 @@
     }
   }
 
-  function sendColor(hex, name, tc) {
+  function sendColor(hex, name, tc, blink) {
     if (conn && conn.open) {
       try {
-        conn.send({ type: 'COLOR', hex: hex, name: name, textColor: tc });
+        conn.send({ type: 'COLOR', hex: hex, name: name, textColor: tc, blink: !!blink });
         $('ctrl-feedback').textContent = 'Inviato: ' + name;
         return;
       } catch (e) {}
@@ -653,7 +665,7 @@
       } else if (d.type === 'COLOR') {
         lastPing = Date.now();
         setRecvStatus('connected');
-        applyColor(d.hex, d.name, d.textColor);
+        applyColor(d.hex, d.name, d.textColor, d.blink === true);
       }
     });
 
@@ -686,9 +698,22 @@
     }
   }
 
-  function applyColor(hex, name, tc) {
+  function stopBlink() {
+    if (blinkTimer) { clearInterval(blinkTimer); blinkTimer = null; }
+  }
+
+  function applyColor(hex, name, tc, blink) {
     if (typeof hex !== 'string' || !COLOR_RE.test(hex)) return;
-    $('screen-recv').style.backgroundColor = hex;
+    var scr = $('screen-recv');
+    stopBlink();
+    scr.style.backgroundColor = hex;
+    if (blink) {
+      var on = true;
+      blinkTimer = setInterval(function() {
+        on = !on;
+        scr.style.backgroundColor = on ? hex : BLINK_OFF;
+      }, BLINK_MS);
+    }
     var el = $('recv-name');
     el.textContent = (typeof name === 'string') ? name.slice(0, 30) : '';
     el.style.color = (typeof tc === 'string' && COLOR_RE.test(tc)) ? tc : '#fff';
@@ -735,7 +760,8 @@
       sendColor(
         btn.getAttribute('data-hex'),
         btn.getAttribute('data-name'),
-        btn.getAttribute('data-tc')
+        btn.getAttribute('data-tc'),
+        btn.getAttribute('data-blink') === '1'
       );
     });
   });
