@@ -404,11 +404,11 @@
   }
 
   function requestWakeLock() {
-    if (role !== 'recv') return;
+    if (!role) return;
     if (!('wakeLock' in navigator)) { startFallback(); return; }
     if (wakeLock || document.visibilityState !== 'visible') return;
     navigator.wakeLock.request('screen').then(function(wl) {
-      if (role !== 'recv') { try { wl.release(); } catch (e) {} return; }
+      if (!role) { try { wl.release(); } catch (e) {} return; }
       wakeLock = wl;
       wl.addEventListener('release', function() {
         if (wakeLock === wl) { wakeLock = null; requestWakeLock(); }
@@ -550,6 +550,7 @@
     show('ctrl');
     setCtrlStatus(false, 'Ricerca Ricettore...');
     $('ctrl-feedback').textContent = 'Pronto all\'invio';
+    requestWakeLock();
     startWatchdog();
     createPeer();
   }
