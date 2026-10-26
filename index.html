@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ColorSync">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <title>ColorSync</title>
+  <script src="peerjs.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #151c2e;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --blue: #3b82f6;
+      --green: #10b981;
+      --orange: #f59e0b;
+      --red: #ef4444;
+      --safe-t: env(safe-area-inset-top, 0px);
+      --safe-b: env(safe-area-inset-bottom, 0px);
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+
+    /* ── SCREENS ── */
+    #app { position:relative; width:100%; height:100%; }
+    .screen {
+      position:absolute; inset:0;
+      display:none; flex-direction:column;
+      padding: calc(20px + var(--safe-t)) 20px calc(20px + var(--safe-b));
+      overflow-y:auto;
+    }
+    .screen.on { display:flex; }
+
+    /* ── WELCOME ── */
+    .hero {
+      background:var(--surface); border:1px solid rgba(255,255,255,.08);
+      border-radius:24px; padding:24px 20px; text-align:center; margin-bottom:16px;
+    }
+    .badge {
+      display:inline-block; font-size:.8rem; font-weight:800; letter-spacing:1px;
+      color:#fbbf24; background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.3);
+      padding:5px 14px; border-radius:99px; margin-bottom:12px;
+    }
+    .hero h1 { font-size:1.8rem; font-weight:800; margin-bottom:6px; }
+    .hero p  { color:var(--muted); font-size:.95rem; }
+
+    .code-row {
+      display:flex; align-items:center; gap:12px; margin-bottom:16px;
+      background:var(--surface); border:1px solid rgba(255,255,255,.08);
+      border-radius:16px; padding:10px 14px;
+    }
+    .code-row label { font-size:.82rem; font-weight:700; color:var(--muted); white-space:nowrap; }
+    .code-row input {
+      flex:1; min-width:0; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+      border-radius:10px; color:var(--text); font-size:1rem; font-weight:700;
+      padding:8px 12px; outline:none;
+    }
+    .code-row input:focus { border-color:var(--blue); }
+
+    .role-list { display:flex; flex-direction:column; gap:14px; margin-bottom:18px; }
+    .role-btn {
+      display:flex; align-items:center; gap:16px;
+      background:var(--surface); border:2px solid rgba(255,255,255,.08);
+      border-radius:20px; padding:20px 18px; text-align:left;
+      color:var(--text); touch-action:manipulation; cursor:pointer;
+      transition:transform .12s, border-color .12s, background .12s;
+    }
+    .role-btn:active { transform:scale(.97); border-color:var(--blue); background:#1c263d; }
+    .role-btn.recv { border-color:rgba(56,189,248,.35); background:linear-gradient(135deg,#151c2e,#0e2a44); }
+    .role-emoji { font-size:2rem; width:54px; height:54px; display:flex; align-items:center;
+      justify-content:center; background:rgba(255,255,255,.05); border-radius:14px; flex-shrink:0; }
+    .role-text h2 { font-size:1.15rem; font-weight:800; margin-bottom:3px; }
+    .role-text p  { font-size:.85rem; color:var(--muted); }
+
+    .tip { background:rgba(59,130,246,.08); border-left:4px solid var(--blue);
+      border-radius:12px; padding:14px 16px; font-size:.88rem; color:#cbd5e1; line-height:1.5; }
+
+    /* ── CONTROLLER ── */
+    #screen-ctrl { gap:0; }
+
+    .dc-alert {
+      background:linear-gradient(135deg,rgba(239,68,68,.22),rgba(185,28,28,.35));
+      border:1.5px solid var(--red); border-radius:14px; padding:12px 14px;
+      display:flex; align-items:center; gap:12px; margin-bottom:12px;
+      animation:pulse-alert 1.8s infinite;
+    }
+    .dc-alert.hidden { display:none; }
+    @keyframes pulse-alert {
+      0%,100% { border-color:var(--red); box-shadow:0 0 0 0 transparent; }
+      50% { border-color:#f87171; box-shadow:0 0 14px rgba(239,68,68,.45); }
+    }
+    .dc-icon { font-size:1.5rem; }
+    .dc-body { flex:1; }
+    .dc-body b { display:block; color:#fecaca; font-size:.92rem; }
+    .dc-body span { color:#fca5a5; font-size:.78rem; }
+    .dc-spin { width:18px; height:18px; border:2px solid rgba(255,255,255,.15);
+      border-top-color:#f87171; border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; }
+    .pill {
+      display:inline-flex; align-items:center; gap:8px; border-radius:99px;
+      font-size:.82rem; font-weight:700; padding:6px 14px;
+    }
+    .pill.online  { background:rgba(16,185,129,.15); color:#34d399; }
+    .pill.waiting { background:rgba(245,158,11,.15); color:#fbbf24; }
+    .pill .dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+    .pill.online .dot  { background:var(--green); }
+    .pill.waiting .dot { background:var(--orange); animation:blink 1.2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+    .exit-btn {
+      background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.1);
+      color:var(--text); padding:6px 14px; border-radius:99px; font-size:.82rem;
+      font-weight:700; cursor:pointer; touch-action:manipulation;
+    }
+    .exit-btn:active { background:rgba(255,255,255,.18); }
+
+    .grid-wrap { flex:1; display:flex; flex-direction:column; min-height:0; }
+    .grid-hint { text-align:center; color:var(--muted); font-size:.88rem; margin-bottom:10px; }
+    .color-grid { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(3,1fr); gap:12px; min-height:0; }
+    .color-grid.dim { opacity:.6; filter:saturate(.5); }
+
+    .cbtn {
+      border:none; border-radius:20px; display:flex; flex-direction:column;
+      justify-content:space-between; padding:14px 16px; cursor:pointer;
+      touch-action:manipulation; box-shadow:0 6px 16px rgba(0,0,0,.35);
+      transition:transform .1s, filter .1s;
+    }
+    .cbtn:active { transform:scale(.91); filter:brightness(1.3); }
+    .cbtn .cn { font-size:1.3rem; font-weight:800; text-align:left; }
+    .cbtn .ci { align-self:flex-end; font-size:1.3rem; font-weight:900; opacity:.75; }
+    .cbtn.neutral { border:2px dashed rgba(255,255,255,.3); }
+
+    .grid-footer { text-align:center; padding-top:8px; font-size:.82rem; color:var(--muted); }
+
+    /* ── RECEIVER ── */
+    #screen-recv {
+      padding:0; background:#0f172a;
+      transition:background .12s cubic-bezier(.2,.8,.2,1);
+      justify-content:center; align-items:center;
+    }
+    .recv-bar {
+      position:absolute; top:calc(14px + var(--safe-t)); left:14px; right:14px;
+      display:flex; justify-content:space-between; align-items:center; z-index:20;
+      transition:opacity .35s;
+    }
+    .recv-bar.fade { opacity:0; pointer-events:none; }
+    .recv-center {
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+      transition:opacity .35s;
+    }
+    .recv-center.fade { opacity:0; pointer-events:none; }
+    #recv-name { font-size:3.2rem; font-weight:900; text-shadow:0 4px 16px rgba(0,0,0,.6); }
+    .recv-hint { font-size:.85rem; color:rgba(255,255,255,.65); }
+
+    .circle-btn {
+      background:rgba(0,0,0,.45); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+      border:1px solid rgba(255,255,255,.2); color:#fff;
+      width:44px; height:44px; border-radius:50%; font-size:1rem;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; touch-action:manipulation;
+    }
+    .circle-btn:active { background:rgba(0,0,0,.7); }
+    .btn-row { display:flex; gap:8px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SCREEN 1: SCEGLI RUOLO -->
+  <div id="screen-welcome" class="screen on">
+    <div class="hero">
+      <div class="badge">🔑 Password: <span id="badge-code">colore</span></div>
+      <h1>ColorSync</h1>
+      <p>Cosa deve fare questo telefono?</p>
+    </div>
+
+    <div class="code-row">
+      <label for="code-input">Password canale</label>
+      <input id="code-input" type="text" maxlength="20" value="colore"
+             autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+    </div>
+
+    <div class="role-list">
+      <button class="role-btn" id="btn-ctrl">
+        <div class="role-emoji">📱</div>
+        <div class="role-text">
+          <h2>Telecomando</h2>
+          <p>Manda i 5 colori + neutro allo schermo</p>
+        </div>
+      </button>
+      <button class="role-btn recv" id="btn-recv">
+        <div class="role-emoji">📺</div>
+        <div class="role-text">
+          <h2>Ricettore</h2>
+          <p>Schermo intero che cambia colore</p>
+        </div>
+      </button>
+    </div>
+
+    <div class="tip">
+      💡 <strong>Come usarli:</strong><br>
+      1. Sul telefono-schermo tocca <strong>Ricettore</strong><br>
+      2. Sull'altro telefono tocca <strong>Telecomando</strong><br>
+      Si collegano automaticamente!<br>
+      <small>Usa la stessa password su entrambi. Cambiala per non farti disturbare da altri.</small>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: TELECOMANDO -->
+  <div id="screen-ctrl" class="screen">
+    <div class="dc-alert hidden" id="dc-alert">
+      <div class="dc-icon">⚠️</div>
+      <div class="dc-body">
+        <b>Ricettore disconnesso</b>
+        <span>Riconnessione automatica in corso...</span>
+      </div>
+      <div class="dc-spin"></div>
+    </div>
+
+    <div class="top-bar">
+      <div class="pill waiting" id="ctrl-pill">
+        <span class="dot"></span>
+        <span id="ctrl-pill-txt">Ricerca Ricettore...</span>
+      </div>
+      <button class="exit-btn" id="ctrl-exit">✕ Esci</button>
+    </div>
+
+    <div class="grid-wrap">
+      <p class="grid-hint">Tocca un colore per inviarlo:</p>
+      <div class="color-grid dim" id="color-grid">
+        <button class="cbtn" style="background:#EF4444;color:#fff"      data-hex="#EF4444" data-name="Rosso"  data-tc="#fff">
+          <span class="cn">Rosso</span><span class="ci">1</span>
+        </button>
+        <button class="cbtn" style="background:#10B981;color:#fff"      data-hex="#10B981" data-name="Verde"  data-tc="#fff">
+          <span class="cn">Verde</span><span class="ci">2</span>
+        </button>
+        <button class="cbtn" style="background:#3B82F6;color:#fff"      data-hex="#3B82F6" data-name="Blu"    data-tc="#fff">
+          <span class="cn">Blu</span><span class="ci">3</span>
+        </button>
+        <button class="cbtn" style="background:#FFD600;color:#1e293b"   data-hex="#FFD600" data-name="Giallo" data-tc="#1e293b">
+          <span class="cn">Giallo</span><span class="ci">4</span>
+        </button>
+        <button class="cbtn" style="background:#D400FF;color:#fff"      data-hex="#D400FF" data-name="Viola"  data-tc="#fff">
+          <span class="cn">Viola</span><span class="ci">5</span>
+        </button>
+        <button class="cbtn neutral" style="background:#0F172A;color:#94a3b8" data-hex="#0F172A" data-name="Neutro" data-tc="#94a3b8">
+          <span class="cn">Neutro</span><span class="ci">⚪</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="grid-footer" id="ctrl-feedback">Pronto all'invio</div>
+  </div>
+
+  <!-- SCREEN 3: RICETTORE -->
+  <div id="screen-recv" class="screen">
+    <div class="recv-bar" id="recv-bar">
+      <div class="pill online" id="recv-pill">
+        <span class="dot"></span>
+        <span id="recv-pill-txt">In ascolto</span>
+      </div>
+      <div class="btn-row">
+        <button class="circle-btn" id="recv-fs" title="Schermo intero">⛶</button>
+        <button class="circle-btn" id="recv-exit" title="Esci">✕</button>
+      </div>
+    </div>
+
+    <div class="recv-center" id="recv-center">
+      <div id="recv-name">Neutro</div>
+      <div class="recv-hint">In attesa comandi...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── CONFIG ──────────────────────────────────────────────
+  var CHANNEL_PREFIX = 'colorsync-channel-';
+  var DEFAULT_CODE   = 'colore';
+  var STORAGE_KEY    = 'colorsync-code';
+
+  // STUN per il caso normale; il TURN pubblico e' un ripiego (best effort)
+  // per le reti 4G/5G dove il collegamento diretto non riesce.
+  var ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: ['turn:openrelay.metered.ca:80',
+             'turn:openrelay.metered.ca:443',
+             'turn:openrelay.metered.ca:443?transport=tcp'],
+      username: 'openrelayproject', credential: 'openrelayproject' }
+  ];
+
+  var TICK_MS         = 2000;   // controllo periodico di salute
+  var PONG_TIMEOUT    = 7000;   // Telecomando: nessun PONG => Ricettore perso
+  var CONNECT_TIMEOUT = 8000;   // tentativo di connessione bloccato
+  var PEER_TIMEOUT    = 15000;  // registrazione al broker bloccata
+  var RECV_STALE      = 7000;   // Ricettore: nessun PING => Telecomando perso
+
+  var COLOR_RE = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i;
+
+  // ── STATE ──────────────────────────────────────────────
+  var role         = null;      // null | 'ctrl' | 'recv'
+  var code         = DEFAULT_CODE;
+  var peer         = null;
+  var peerBornAt   = 0;
+  var conn         = null;
+  var connBornAt   = 0;
+  var lastPong     = 0;
+  var lastPing     = 0;
+  var watchdog     = null;
+  var wakeLock     = null;
+  var fadeTimer    = null;
+  var ctrlsVisible = true;
+
+  // ── DOM ────────────────────────────────────────────────
+  function $(id) { return document.getElementById(id); }
+  var screens = {
+    welcome : $('screen-welcome'),
+    ctrl    : $('screen-ctrl'),
+    recv    : $('screen-recv')
+  };
+
+  // ── CODE (password del canale) ─────────────────────────
+  function sanitize(v) {
+    return (v || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+  }
+  function loadCode() {
+    try { return sanitize(localStorage.getItem(STORAGE_KEY)) || DEFAULT_CODE; }
+    catch (e) { return DEFAULT_CODE; }
+  }
+  function saveCode() {
+    try { localStorage.setItem(STORAGE_KEY, code); } catch (e) {}
+  }
+  function peerId() { return CHANNEL_PREFIX + code; }
+
+  function readCodeInput() {
+    code = sanitize($('code-input').value) || DEFAULT_CODE;
+    saveCode();
+  }
+
+  // ── NAVIGATION ─────────────────────────────────────────
+  function show(name) {
+    Object.keys(screens).forEach(function(k) {
+      screens[k].classList.toggle('on', k === name);
+    });
+  }
+
+  function goHome() {
+    role = null;
+    if (watchdog) { clearInterval(watchdog); watchdog = null; }
+    if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
+    destroyPeer();
+    releaseWakeLock();
+    $('screen-recv').style.backgroundColor = '';
+    $('recv-name').textContent = 'Neutro';
+    $('recv-name').style.color = '';
+    show('welcome');
+  }
+
+  // ── WAKE LOCK ──────────────────────────────────────────
+  // Wake Lock nativo (serve https o localhost). Dove manca (http su Wi-Fi,
+  // vecchi iOS) si usa un video invisibile che tiene sveglio lo schermo.
+  // Il tick lo richiede di nuovo se il sistema lo toglie (risparmio batteria...).
+  var fbVideo = null, fbTimer = null;
+
+  function startFallback() {
+    if (fbVideo) { if (fbVideo.paused) fbVideo.play().catch(function() {}); return; }
+    try {
+      var cv = document.createElement('canvas');
+      cv.width = cv.height = 16;
+      if (!cv.captureStream) return;
+      var ctx = cv.getContext('2d'), n = 0;
+      var draw = function() { ctx.fillStyle = (n++ % 2) ? '#000' : '#010101'; ctx.fillRect(0, 0, 16, 16); };
+      draw();
+      var v = document.createElement('video');
+      v.muted = true; v.loop = true;
+      v.setAttribute('playsinline', '');
+      v.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:.01;pointer-events:none;';
+      v.srcObject = cv.captureStream(5);
+      document.body.appendChild(v);
+      fbTimer = setInterval(draw, 1000);
+      v.play().catch(function() {});
+      fbVideo = v;
+    } catch (e) {}
+  }
+  function stopFallback() {
+    if (fbTimer) { clearInterval(fbTimer); fbTimer = null; }
+    if (fbVideo) { try { fbVideo.pause(); fbVideo.remove(); } catch (e) {} fbVideo = null; }
+  }
+
+  function requestWakeLock() {
+    if (role !== 'recv') return;
+    if (!('wakeLock' in navigator)) { startFallback(); return; }
+    if (wakeLock || document.visibilityState !== 'visible') return;
+    navigator.wakeLock.request('screen').then(function(wl) {
+      if (role !== 'recv') { try { wl.release(); } catch (e) {} return; }
+      wakeLock = wl;
+      wl.addEventListener('release', function() {
+        if (wakeLock === wl) { wakeLock = null; requestWakeLock(); }
+      });
+    }).catch(function() { startFallback(); });
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+    stopFallback();
+  }
+
+  // ── FULLSCREEN ─────────────────────────────────────────
+  function toggleFS() {
+    var r;
+    if (!document.fullscreenElement) {
+      r = document.documentElement.requestFullscreen();
+    } else {
+      r = document.exitFullscreen();
+    }
+    if (r && r.catch) r.catch(function() {});
+  }
+
+  // ── PEER LIFECYCLE ─────────────────────────────────────
+  // Ogni handler controlla di essere ancora l'oggetto corrente: gli eventi
+  // tardivi di peer/connessioni scartati vengono cosi' ignorati.
+  function dropConn() {
+    if (conn) {
+      var c = conn;
+      conn = null;
+      try { c.close(); } catch (e) {}
+    }
+  }
+
+  function destroyPeer() {
+    dropConn();
+    if (peer) {
+      var p = peer;
+      peer = null;
+      try { p.destroy(); } catch (e) {}
+    }
+  }
+
+  function createPeer() {
+    destroyPeer();
+    var opts = { debug: 1, config: { iceServers: ICE_SERVERS } };
+    var p;
+    try {
+      p = (role === 'recv') ? new Peer(peerId(), opts) : new Peer(opts);
+    } catch (e) {
+      console.warn('[Peer create failed]', e);
+      return;
+    }
+    peer = p;
+    peerBornAt = Date.now();
+
+    p.on('open', function() {
+      if (p !== peer) return;
+      if (role === 'ctrl') tryConnect();
+      else setRecvStatus('listening');
+    });
+
+    p.on('connection', function(c) {
+      if (p !== peer || role !== 'recv') { try { c.close(); } catch (e) {} return; }
+      acceptConn(c);
+    });
+
+    p.on('disconnected', function() {
+      if (p !== peer) return;
+      try { p.reconnect(); } catch (e) {}
+    });
+
+    p.on('close', function() {
+      if (p !== peer) return;
+      peer = null;
+      conn = null;
+      onOffline();
+    });
+
+    p.on('error', function(err) {
+      if (p !== peer) return;
+      console.warn('[Peer error]', err && err.type, err);
+      var type = err && err.type;
+      if (role === 'ctrl' && (type === 'peer-unavailable' || type === 'webrtc')) {
+        dropConn();
+        onOffline();
+        return;
+      }
+      // errore del broker / di rete / id occupato: si ricrea al prossimo tick
+      destroyPeer();
+      onOffline();
+    });
+  }
+
+  function onOffline() {
+    if (role === 'ctrl') setCtrlStatus(false, 'Ricerca Ricettore...');
+    else if (role === 'recv') setRecvStatus('error');
+  }
+
+  // Controllo periodico: ricrea, riconnette, manda i PING e rileva i timeout.
+  function tick() {
+    if (!role) return;
+    var now = Date.now();
+    requestWakeLock();
+
+    if (!peer || peer.destroyed) { createPeer(); return; }
+    if (peer.disconnected) { try { peer.reconnect(); } catch (e) {} return; }
+    if (!peer.open) {
+      if (now - peerBornAt > PEER_TIMEOUT) createPeer();
+      return;
+    }
+
+    if (role === 'ctrl') {
+      if (conn && conn.open) {
+        if (now - lastPong > PONG_TIMEOUT) {
+          dropConn();
+          setCtrlStatus(false, 'Ricettore disconnesso!');
+          return;
+        }
+        try { conn.send({ type: 'PING' }); } catch (e) {}
+      } else if (!conn || now - connBornAt > CONNECT_TIMEOUT) {
+        tryConnect();
+      }
+    } else if (conn && now - lastPing > RECV_STALE) {
+      setRecvStatus('listening');
+    }
+  }
+
+  function startWatchdog() {
+    if (watchdog) clearInterval(watchdog);
+    watchdog = setInterval(tick, TICK_MS);
+  }
+
+  // ──────────────────────────────────────────────────────
+  // CONTROLLER (TELECOMANDO)
+  // ──────────────────────────────────────────────────────
+  function startController() {
+    readCodeInput();
+    role = 'ctrl';
+    show('ctrl');
+    setCtrlStatus(false, 'Ricerca Ricettore...');
+    $('ctrl-feedback').textContent = 'Pronto all\'invio';
+    startWatchdog();
+    createPeer();
+  }
+
+  function tryConnect() {
+    if (role !== 'ctrl' || !peer || peer.destroyed || peer.disconnected || !peer.open) return;
+    dropConn();
+
+    var c;
+    try { c = peer.connect(peerId(), { reliable: true }); }
+    catch (e) { return; }
+    conn = c;
+    connBornAt = Date.now();
+    lastPong = 0;
+
+    c.on('open', function() {
+      if (c !== conn) return;
+      lastPong = Date.now();
+      setCtrlStatus(true, 'Collegato al Ricettore');
+      try { c.send({ type: 'PING' }); } catch (e) {}
+    });
+
+    c.on('data', function(d) {
+      if (c !== conn) return;
+      if (d && d.type === 'PONG') lastPong = Date.now();
+    });
+
+    c.on('close', function() {
+      if (c !== conn) return;
+      conn = null;
+      setCtrlStatus(false, 'Ricettore disconnesso!');
+    });
+
+    c.on('error', function(err) {
+      if (c !== conn) return;
+      console.warn('[Ctrl conn error]', err);
+      dropConn();
+      setCtrlStatus(false, 'Ricerca Ricettore...');
+    });
+  }
+
+  function setCtrlStatus(online, txt) {
+    var pill  = $('ctrl-pill');
+    var alert = $('dc-alert');
+    var grid  = $('color-grid');
+
+    $('ctrl-pill-txt').textContent = txt;
+
+    if (online) {
+      pill.className  = 'pill online';
+      alert.className = 'dc-alert hidden';
+      grid.classList.remove('dim');
+    } else {
+      pill.className  = 'pill waiting';
+      alert.className = 'dc-alert';
+      grid.classList.add('dim');
+    }
+  }
+
+  function sendColor(hex, name, tc) {
+    if (conn && conn.open) {
+      try {
+        conn.send({ type: 'COLOR', hex: hex, name: name, textColor: tc });
+        $('ctrl-feedback').textContent = 'Inviato: ' + name;
+        return;
+      } catch (e) {}
+    }
+    $('ctrl-feedback').textContent = 'Non inviato: Ricettore disconnesso!';
+  }
+
+  // ──────────────────────────────────────────────────────
+  // RECEIVER (RICETTORE)
+  // ──────────────────────────────────────────────────────
+  function startReceiver() {
+    readCodeInput();
+    role = 'recv';
+    show('recv');
+    setRecvStatus('listening');
+    requestWakeLock();
+    revealCtrls(2800);
+    startWatchdog();
+    createPeer();
+  }
+
+  function acceptConn(c) {
+    if (conn && conn !== c) {
+      var old = conn;
+      conn = null;
+      try { old.close(); } catch (e) {}
+    }
+    conn = c;
+    lastPing = Date.now();
+
+    c.on('data', function(d) {
+      if (c !== conn || !d) return;
+      if (d.type === 'PING') {
+        lastPing = Date.now();
+        setRecvStatus('connected');
+        try { c.send({ type: 'PONG' }); } catch (e) {}
+      } else if (d.type === 'COLOR') {
+        lastPing = Date.now();
+        setRecvStatus('connected');
+        applyColor(d.hex, d.name, d.textColor);
+      }
+    });
+
+    c.on('close', function() {
+      if (c !== conn) return;
+      conn = null;
+      setRecvStatus('listening');
+    });
+
+    c.on('error', function() {
+      if (c !== conn) return;
+      dropConn();
+      setRecvStatus('listening');
+    });
+  }
+
+  function setRecvStatus(state) {
+    var pill = $('recv-pill');
+    var txt  = $('recv-pill-txt');
+    var pw   = ' • PW: ' + code;
+    if (state === 'connected') {
+      pill.className = 'pill online';
+      txt.textContent = 'Telecomando collegato' + pw;
+    } else if (state === 'error') {
+      pill.className = 'pill waiting';
+      txt.textContent = 'Riconnessione...' + pw;
+    } else {
+      pill.className = 'pill online';
+      txt.textContent = 'In ascolto' + pw;
+    }
+  }
+
+  function applyColor(hex, name, tc) {
+    if (typeof hex !== 'string' || !COLOR_RE.test(hex)) return;
+    $('screen-recv').style.backgroundColor = hex;
+    var el = $('recv-name');
+    el.textContent = (typeof name === 'string') ? name.slice(0, 30) : '';
+    el.style.color = (typeof tc === 'string' && COLOR_RE.test(tc)) ? tc : '#fff';
+    revealCtrls(1800);
+  }
+
+  function hideCtrls() {
+    $('recv-bar').classList.add('fade');
+    $('recv-center').classList.add('fade');
+    ctrlsVisible = false;
+  }
+
+  function revealCtrls(hideAfter) {
+    $('recv-bar').classList.remove('fade');
+    $('recv-center').classList.remove('fade');
+    ctrlsVisible = true;
+    if (fadeTimer) clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(hideCtrls, hideAfter);
+  }
+
+  // ── EVENT LISTENERS (registrati una volta sola) ────────
+  $('code-input').addEventListener('input', function() {
+    var clean = sanitize(this.value);
+    if (clean !== this.value) this.value = clean;
+    $('badge-code').textContent = clean || DEFAULT_CODE;
+  });
+
+  $('btn-ctrl').addEventListener('click', startController);
+  $('btn-recv').addEventListener('click', startReceiver);
+  $('ctrl-exit').addEventListener('click', goHome);
+  $('recv-exit').addEventListener('click', goHome);
+  $('recv-fs').addEventListener('click', toggleFS);
+  if (!document.documentElement.requestFullscreen) $('recv-fs').style.display = 'none';
+
+  $('screen-recv').addEventListener('click', function(e) {
+    if (e.target.closest('button')) return;
+    if (ctrlsVisible) { if (fadeTimer) clearTimeout(fadeTimer); hideCtrls(); }
+    else revealCtrls(2800);
+  });
+
+  var colorBtns = document.querySelectorAll('.cbtn');
+  colorBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      sendColor(
+        btn.getAttribute('data-hex'),
+        btn.getAttribute('data-name'),
+        btn.getAttribute('data-tc')
+      );
+    });
+  });
+
+  // ritorno in primo piano: riprende wake lock e controlla subito la rete
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'visible') return;
+    requestWakeLock();
+    tick();
+  });
+  window.addEventListener('online', tick);
+  window.addEventListener('pageshow', function() { requestWakeLock(); tick(); });
+  // libera l'ID sul broker; se la pagina torna viva il tick lo ricrea
+  window.addEventListener('pagehide', function() { destroyPeer(); });
+
+  // ── AVVIO ──────────────────────────────────────────────
+  code = loadCode();
+  $('code-input').value = code;
+  $('badge-code').textContent = code;
+
+  // parte SEMPRE dalla scelta del ruolo, pulendo eventuali parametri
+  window.history.replaceState({}, '', window.location.pathname);
+  show('welcome');
+
+  // service worker (solo su https o localhost)
+  if ('serviceWorker' in navigator &&
+      (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(function() {});
+  }
+})();
+</script>
+</body>
+</html>
