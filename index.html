@@ -147,7 +147,7 @@
 
     /* ── RECEIVER ── */
     #screen-recv {
-      padding:0; background:#0f172a;
+      padding:0; background:#000;
       transition:background .12s cubic-bezier(.2,.8,.2,1);
       justify-content:center; align-items:center;
     }
@@ -198,7 +198,7 @@
         <div class="role-emoji">📱</div>
         <div class="role-text">
           <h2>Telecomando</h2>
-          <p>Manda i 5 colori + neutro allo schermo</p>
+          <p>Manda i 5 colori + nero allo schermo</p>
         </div>
       </button>
       <button class="role-btn recv" id="btn-recv">
@@ -256,8 +256,8 @@
         <button class="cbtn" style="background:#D400FF;color:#fff"      data-hex="#D400FF" data-name="Viola"  data-tc="#fff">
           <span class="cn">Viola</span><span class="ci">5</span>
         </button>
-        <button class="cbtn neutral" style="background:#0F172A;color:#94a3b8" data-hex="#0F172A" data-name="Neutro" data-tc="#94a3b8">
-          <span class="cn">Neutro</span><span class="ci">⚪</span>
+        <button class="cbtn neutral" style="background:#000000;color:#94a3b8" data-hex="#000000" data-name="Nero" data-tc="#94a3b8">
+          <span class="cn">Nero</span><span class="ci">⚫</span>
         </button>
         <button class="cbtn blink" style="background:#EF4444;color:#fff" data-hex="#EF4444" data-name="Rosso lampeggiante" data-tc="#fff" data-blink="1">
           <span class="cn">Rosso<small>lampeggiante</small></span><span class="ci">⚡</span>
@@ -285,7 +285,7 @@
     </div>
 
     <div class="recv-center" id="recv-center">
-      <div id="recv-name">Neutro</div>
+      <div id="recv-name">Nero</div>
       <div class="recv-hint">In attesa comandi...</div>
     </div>
   </div>
@@ -379,7 +379,7 @@
     releaseWakeLock();
     stopBlink();
     $('screen-recv').style.backgroundColor = '';
-    $('recv-name').textContent = 'Neutro';
+    $('recv-name').textContent = 'Nero';
     $('recv-name').style.color = '';
     show('welcome');
   }
