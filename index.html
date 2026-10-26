@@ -128,6 +128,21 @@
     .grid-wrap { flex:1; display:flex; flex-direction:column; min-height:0; }
     .grid-hint { text-align:center; color:var(--muted); font-size:.88rem; margin-bottom:10px; }
     .color-grid { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(4,1fr); gap:12px; min-height:0; }
+    .state-panel {
+      display:flex; align-items:center; gap:10px; margin-bottom:12px;
+      background:var(--surface); border:1px solid rgba(255,255,255,.08);
+      border-radius:14px; padding:8px 12px; font-size:.82rem;
+    }
+    .sp-label { color:var(--muted); font-weight:700; white-space:nowrap; }
+    .sp-swatch {
+      width:26px; height:26px; border-radius:8px; flex-shrink:0;
+      border:1px solid rgba(255,255,255,.35); background:transparent;
+    }
+    .sp-swatch.unknown { border-style:dashed; }
+    .sp-swatch.blink { animation:sp-blink 1s steps(1) infinite; }
+    @keyframes sp-blink { 0%,49.9% { filter:none; } 50%,100% { filter:brightness(0); } }
+    .sp-name { font-weight:800; }
+    .state-panel.off .sp-name { color:var(--muted); font-weight:700; }
     .cbtn.blink .ci { animation:blink 1s infinite; }
     .cbtn small { display:block; font-size:.8rem; font-weight:700; opacity:.85; margin-top:2px; }
     .color-grid.dim { opacity:.6; filter:saturate(.5); }
@@ -236,6 +251,12 @@
         <span id="ctrl-pill-txt">Ricerca Ricettore...</span>
       </div>
       <button class="exit-btn" id="ctrl-exit">✕ Esci</button>
+    </div>
+
+    <div class="state-panel off" id="state-panel">
+      <span class="sp-label">Sul ricettore:</span>
+      <span class="sp-swatch unknown" id="sp-swatch"></span>
+      <span class="sp-name" id="sp-name">—</span>
     </div>
 
     <div class="grid-wrap">
@@ -378,6 +399,7 @@
     destroyPeer();
     releaseWakeLock();
     stopBlink();
+    curHex = '#000000'; curName = 'Nero'; curBlink = false;
     $('screen-recv').style.backgroundColor = '';
     $('recv-name').textContent = 'Nero';
     $('recv-name').style.color = '';
@@ -587,7 +609,9 @@
 
     c.on('data', function(d) {
       if (c !== conn) return;
-      if (d && d.type === 'PONG') lastPong = Date.now();
+      if (!d) return;
+      if (d.type === 'PONG') lastPong = Date.now();
+      if (d.type === 'PONG' || d.type === 'STATE') showRecvState(d);
     });
 
     c.on('close', function() {
@@ -602,6 +626,24 @@
       dropConn();
       setCtrlStatus(false, 'Ricerca Ricettore...');
     });
+  }
+
+  // pannello "Sul ricettore": colore attuale comunicato dal Ricettore stesso
+  function showRecvState(s) {
+    var panel = $('state-panel'), sw = $('sp-swatch'), nm = $('sp-name');
+    if (s && typeof s.hex === 'string' && COLOR_RE.test(s.hex)) {
+      sw.style.background = s.hex;
+      sw.classList.remove('unknown');
+      sw.classList.toggle('blink', s.blink === true);
+      nm.textContent = (typeof s.name === 'string') ? s.name.slice(0, 30) : '';
+      panel.classList.remove('off');
+    } else {
+      sw.style.background = '';
+      sw.classList.add('unknown');
+      sw.classList.remove('blink');
+      nm.textContent = '—';
+      panel.classList.add('off');
+    }
   }
 
   function setCtrlStatus(online, txt) {
@@ -619,6 +661,7 @@
       pill.className  = 'pill waiting';
       alert.className = 'dc-alert';
       grid.classList.add('dim');
+      showRecvState(null);
     }
   }
 
@@ -661,11 +704,12 @@
       if (d.type === 'PING') {
         lastPing = Date.now();
         setRecvStatus('connected');
-        try { c.send({ type: 'PONG' }); } catch (e) {}
+        try { c.send(stateMsg('PONG')); } catch (e) {}
       } else if (d.type === 'COLOR') {
         lastPing = Date.now();
         setRecvStatus('connected');
         applyColor(d.hex, d.name, d.textColor, d.blink === true);
+        try { c.send(stateMsg('STATE')); } catch (e) {}
       }
     });
 
@@ -698,6 +742,12 @@
     }
   }
 
+  // stato mostrato dal Ricettore, rimandato al Telecomando (PONG / STATE)
+  var curHex = '#000000', curName = 'Nero', curBlink = false;
+  function stateMsg(type) {
+    return { type: type, hex: curHex, name: curName, blink: curBlink };
+  }
+
   function stopBlink() {
     if (blinkTimer) { clearInterval(blinkTimer); blinkTimer = null; }
   }
@@ -706,6 +756,9 @@
     if (typeof hex !== 'string' || !COLOR_RE.test(hex)) return;
     var scr = $('screen-recv');
     stopBlink();
+    curHex = hex;
+    curName = (typeof name === 'string') ? name.slice(0, 30) : '';
+    curBlink = !!blink;
     scr.style.backgroundColor = hex;
     if (blink) {
       var on = true;
